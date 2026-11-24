@@ -1,0 +1,549 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrivateConnect</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #101820;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 1050px;
+            height: 90vh;
+            min-height: 550px;
+            display: flex;
+            background: #18232f;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid #293746;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: #17212b;
+            padding: 25px;
+            border-right: 1px solid #293746;
+        }
+
+        .logo {
+            font-size: 25px;
+            font-weight: bold;
+            color: #21c995;
+            margin-bottom: 35px;
+        }
+
+        .sidebar input, .sidebar button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 12px;
+            border-radius: 7px;
+            border: 1px solid #354657;
+            background: #243342;
+            color: white;
+        }
+
+        button {
+            cursor: pointer;
+            background: #16a879 !important;
+            border: none !important;
+            font-weight: bold;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #aab8c5;
+        }
+
+        .chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: #202e3b;
+            border-bottom: 1px solid #354657;
+        }
+
+        .chat-header h3 {
+            font-size: 18px;
+        }
+
+        .chat-header p {
+            color: #21c995;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 22px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .welcome {
+            text-align: center;
+            color: #8796a5;
+            margin: auto;
+            line-height: 1.8;
+        }
+
+        .message {
+            max-width: 75%;
+            padding: 11px 14px;
+            border-radius: 12px;
+            background: #293b4d;
+            align-self: flex-start;
+            overflow-wrap: anywhere;
+        }
+
+        .message.outgoing {
+            background: #087e63;
+            align-self: flex-end;
+        }
+
+        .message .time {
+            font-size: 10px;
+            color: #c5d4d8;
+            text-align: right;
+            margin-top: 7px;
+        }
+
+        .message .ticks {
+            color: #bce8ff;
+            margin-left: 5px;
+        }
+
+        .composer {
+            padding: 15px;
+            background: #202e3b;
+            display: flex;
+            gap: 10px;
+        }
+
+        .composer input {
+            flex: 1;
+            min-width: 0;
+            padding: 14px;
+            border-radius: 25px;
+            border: 1px solid #354657;
+            background: #293b4d;
+            color: white;
+            outline: none;
+        }
+
+        .composer button {
+            width: 90px;
+            border-radius: 25px;
+            color: white;
+        }
+
+        @media(max-width: 650px) {
+            body {
+                display: block;
+            }
+
+            .app {
+                height: 100dvh;
+                min-height: 0;
+                border-radius: 0;
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                padding: 12px 16px;
+            }
+
+            .logo {
+                margin-bottom: 10px;
+                font-size: 20px;
+            }
+
+            .sidebar input, .sidebar button {
+                padding: 9px;
+                margin-top: 6px;
+            }
+
+            .status {
+                margin-top: 8px;
+            }
+
+            .chat {
+                flex: 1;
+                min-height: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+
+        <div class="logo">PrivateConnect.</div>
+
+        <h3>JWT Authentication</h3>
+
+        <input id="token" type="password"
+               placeholder="Paste your JWT token">
+
+        <hr style="margin:20px 0;border-color:#354657">
+
+        <h3>Connect Chat</h3>
+
+        <input id="receiver" type="email"
+               placeholder="Friend's email">
+
+        <button onclick="connect()">Connect</button>
+
+        <button onclick="subscribe()">Open Chat</button>
+
+        <div class="status" id="status">
+            ● Disconnected
+        </div>
+
+    </aside>
+
+
+    <main class="chat">
+
+        <div class="chat-header">
+            <h3 id="chatName">Private Chat</h3>
+            <p>Private and secure conversation</p>
+        </div>
+
+        <div class="messages" id="messages">
+            <div class="welcome">
+                <h2>Welcome to PrivateConnect</h2>
+                <p>Login and connect with your friend to start chatting.</p>
+            </div>
+        </div>
+
+        <div class="composer">
+            <input id="content"
+                   placeholder="Type a message..."
+                   onkeydown="if(event.key==='Enter') sendMessage()">
+
+            <button onclick="sendMessage()">Send</button>
+        </div>
+
+    </main>
+
+</div>
+
+<script>
+
+    let client = null;
+    let isSubscribed = false;
+    let currentEmail = "";
+
+    function setStatus(message) {
+        document.getElementById("status").textContent = message;
+    }
+
+    function addMessage(content, outgoing, time, status) {
+
+        const container = document.getElementById("messages");
+
+        const welcome = container.querySelector(".welcome");
+        if (welcome) welcome.remove();
+
+        const bubble = document.createElement("div");
+        bubble.className = "message " + (outgoing ? "outgoing" : "");
+
+        const text = document.createElement("div");
+        text.textContent = content;
+
+        const footer = document.createElement("div");
+        footer.className = "time";
+
+        footer.textContent = time || new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+
+        if (outgoing) {
+            const ticks = document.createElement("span");
+            ticks.className = "ticks";
+            ticks.textContent = status === "SEEN" ? "✓✓" : "✓";
+            footer.appendChild(ticks);
+        }
+
+        bubble.appendChild(text);
+        bubble.appendChild(footer);
+
+        container.appendChild(bubble);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    async function login() {
+
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+
+        try {
+
+            const response = await fetch("/api/users/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                alert(data.message || "Login failed");
+                return;
+            }
+
+            currentEmail = data.email;
+            document.getElementById("email").value = data.email;
+
+            // Keep JWT in memory only
+            window.authToken = data.token;
+
+            setStatus("● Logged in: " + data.email);
+
+            alert("Login successful!");
+
+        } catch (error) {
+            alert("Login error: " + error.message);
+        }
+    }
+
+
+    function connect() {
+        const token = document.getElementById("token").value.trim();
+
+        window.authToken = token;
+
+        const payload = JSON.parse(
+            atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+        );
+
+        currentEmail = payload.sub;
+
+        if (!token) {
+            alert("Please paste your JWT token");
+            return;
+        }
+
+        client = new StompJs.Client({
+            brokerURL: (location.protocol === "https:" ? "wss://" : "ws://")
+                + location.host + "/ws",
+
+            connectHeaders: {
+                Authorization: "Bearer " + token
+            },
+
+            reconnectDelay: 0,
+
+            onConnect: function () {
+                document.getElementById("status").innerText =
+                    "● Connected";
+            },
+
+            onStompError: function (frame) {
+                console.error("STOMP Error:", frame);
+                alert("Connection error");
+            },
+
+            onWebSocketClose: function () {
+                document.getElementById("status").innerText =
+                    "● Disconnected";
+                window.isSubscribed = false;
+            }
+        });
+
+        client.activate();
+    }
+
+
+    async function subscribe() {
+
+        if (!client || !client.connected) {
+            alert("Connect first!");
+            return;
+        }
+
+        if (isSubscribed) {
+            alert("Chat already opened!");
+            return;
+        }
+
+        const partnerEmail = document.getElementById("receiver").value.trim();
+
+        if (!partnerEmail) {
+            alert("Enter friend email!");
+            return;
+        }
+
+        const displayName = partnerEmail === "friend@gmail.com"
+            ? "Payal"
+            : partnerEmail === "shashank@gmail.com"
+                ? "Shashank"
+                : partnerEmail;
+
+        document.getElementById("chatName").textContent = displayName;
+
+        client.subscribe("/user/queue/messages", message => {
+
+            const data = JSON.parse(message.body);
+
+            addMessage(data.content, false, null, null);
+
+            client.publish({
+                destination: "/app/conversation-seen",
+                body: JSON.stringify({
+                    senderEmail: data.senderEmail
+                })
+            });
+
+            // Keep Sent/Seen as primary statuses;
+            // acknowledge delivery for backend consistency.
+            client.publish({
+                destination: "/app/message-delivered",
+                body: JSON.stringify({
+                    messageId: data.id
+                })
+            });
+
+        });
+
+
+        client.subscribe("/user/queue/seen", notification => {
+
+            const seenBy = notification.body.trim().replace(/^"|"$/g, "");
+            const partnerEmail = document.getElementById("receiver").value.trim();
+
+            if (seenBy === partnerEmail) {
+                document.querySelectorAll(".message.outgoing .ticks")
+                    .forEach(tick => {
+                        tick.textContent = "✓✓";
+                    });
+
+                console.log("Messages seen by:", seenBy);
+            }
+        });
+
+
+        isSubscribed = true;
+
+        setStatus("● Chat connected");
+
+        try {
+
+            const response = await fetch(
+                "/api/messages/conversation/" + encodeURIComponent(partnerEmail),
+                {
+                    headers: {
+                        Authorization: "Bearer " + window.authToken
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Could not load chat history");
+            }
+
+            const history = await response.json();
+
+            const container = document.getElementById("messages");
+            container.innerHTML = "";
+
+            history.forEach(message => {
+
+                const outgoing = message.senderEmail === currentEmail;
+
+                const time = new Date(message.sentAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                });
+
+                addMessage(
+                    message.content,
+                    outgoing,
+                    time,
+                    message.status
+                );
+
+            });
+
+            // Mark incoming conversation messages as Seen
+            client.publish({
+                destination: "/app/conversation-seen",
+                body: JSON.stringify({
+                    senderEmail: partnerEmail
+                })
+            });
+
+        } catch (error) {
+            console.error(error);
+            alert(error.message);
+        }
+    }
+
+    function sendMessage() {
+
+        if (!client || !client.connected || !isSubscribed) {
+            alert("Open chat first!");
+            return;
+        }
+
+        const receiverEmail = document.getElementById("receiver").value.trim();
+        const input = document.getElementById("content");
+        const content = input.value.trim();
+
+        if (!content) return;
+
+        client.publish({
+            destination: "/app/private-message",
+            body: JSON.stringify({
+                receiverEmail,
+                content
+            })
+        });
+
+        addMessage(content, true, null, "SENT");
+
+        input.value = "";
+    }
+
+</script>
+
+</body>
+</html>
