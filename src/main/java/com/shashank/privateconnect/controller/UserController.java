@@ -62,4 +62,14 @@ public class UserController {
         return "Welcome! Logged in as: " + authentication.getName();
     }
 
+    @PutMapping("/update-password")
+    public String updatePassword(
+            @RequestParam String newPassword,
+            org.springframework.security.core.Authentication authentication) {
+
+        userService.updatePassword(authentication.getName(), newPassword);
+
+        return "Password updated successfully";
+    }
+
 }
